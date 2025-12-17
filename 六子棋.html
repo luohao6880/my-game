@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -51,13 +50,12 @@
       color: #3a2a1d;
     }
 
-    /* ✅ 强制 canvas 显示尺寸，避免 iOS 布局塌陷 */
     canvas {
       background: #e8c596;
       border: 2px solid #a67c52;
       border-radius: 8px;
       width: 100%;
-      height: 320px; /* 关键：固定高度 */
+      height: 320px;
       display: block;
       margin: 12px 0;
       image-rendering: crisp-edges;
@@ -106,7 +104,6 @@
     <div class="status-line">⚪ 白子：<span id="white-count">6</span></div>
     <div class="status-line" id="status">请选择执子颜色</div>
 
-    <!-- ✅ 主面板按钮，iOS 可见 -->
     <div class="buttons-row" id="color-buttons">
       <button class="btn black" onclick="chooseColor(1)">⚫ 执黑<br>（先手）</button>
       <button class="btn white" onclick="chooseColor(2)">⚪ 执白<br>（后手）</button>
@@ -132,8 +129,7 @@
     ctx.scale(dpr, dpr);
 
     const SIZE = 4;
-    // ✅ 使用固定 CELL_SIZE，避免 iOS 初始 0 问题
-    const DISPLAY_SIZE = 320; // CSS 中 canvas 高度
+    const DISPLAY_SIZE = 320;
     let CELL_SIZE = DISPLAY_SIZE / (SIZE + 1);
     let RADIUS = Math.max(CELL_SIZE / 2 - 4, 2);
 
@@ -142,7 +138,7 @@
     let humanPlayer = null;
     let selectedPiece = null;
     let gameActive = false;
-    let aiHasMovedFirstAsBlack = false; // 标记 AI 是否已作为黑棋走第一步
+    let aiHasMovedFirstAsBlack = false;
 
     function setupInitialBoard() {
       board = Array(SIZE).fill().map(() => Array(SIZE).fill(0));
@@ -171,9 +167,8 @@
       currentPlayer = 1;
       updateStatus();
 
-      // ✅ 如果玩家执白，AI 先走，但降低攻击性（第一次不吃子）
       if (humanPlayer === 2) {
-        aiHasMovedFirstAsBlack = true; // 标记：这是 AI 的“温和开局”
+        aiHasMovedFirstAsBlack = true;
         setTimeout(aiMove, 600);
       }
       drawBoard();
@@ -190,13 +185,13 @@
       `;
       document.getElementById('status').textContent = '请选择执子颜色';
       setupInitialBoard();
+      updateCount();
       drawBoard();
     }
 
     function drawBoard() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // 绘制网格
       ctx.strokeStyle = '#3a2a1d';
       ctx.lineWidth = 1.5;
       for (let i = 0; i < SIZE; i++) {
@@ -210,7 +205,6 @@
         ctx.stroke();
       }
 
-      // 绘制棋子
       for (let r = 0; r < SIZE; r++) {
         for (let c = 0; c < SIZE; c++) {
           const x = CELL_SIZE * (c + 1);
@@ -257,7 +251,6 @@
       }
     }
 
-    // ===== 游戏逻辑 =====
     function getAdjacentEmpty(r, c) {
       const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
       return dirs.map(([dr,dc]) => {
@@ -274,7 +267,7 @@
       newBoard[toR][toC] = player;
       newBoard[fromR][fromC] = 0;
 
-      if (!allowCapture) return newBoard; // 用于 AI 温和开局
+      if (!allowCapture) return newBoard;
 
       const directions = [[0,1], [1,0]];
       for (const [dr, dc] of directions) {
@@ -304,19 +297,30 @@
       return -1;
     }
 
-    function makeMove(fromR, fromC, toR, toC) {
-      if (!gameActive || board[fromR][fromC] !== currentPlayer || board[toR][toC] !== 0) return false;
-      board = simulateMove(fromR, fromC, toR, toC, currentPlayer);
-      currentPlayer = 3 - currentPlayer;
-      selectedPiece = null;
-      updateCount();
-      updateStatus();
-      drawBoard();
+    // ✅ 新增：游戏结束检测
+    function checkGameOver() {
+      const blackCount = board.flat().filter(x => x === 1).length;
+      const whiteCount = board.flat().filter(x => x === 2).length;
 
-      if (currentPlayer !== humanPlayer && gameActive) {
-        setTimeout(aiMove, 400);
+      if (blackCount <= 1 || !hasValidMoves(1)) {
+        endGame(2); // 白胜
+        return true;
       }
-      return true;
+      if (whiteCount <= 1 || !hasValidMoves(2)) {
+        endGame(1); // 黑胜
+        return true;
+      }
+      return false;
+    }
+
+    function endGame(winner) {
+      gameActive = false;
+      const statusEl = document.getElementById('status');
+      if (humanPlayer === winner) {
+        statusEl.innerHTML = '<span style="color:#27ae60;font-weight:bold;">🎉 恭喜！你赢了！</span>';
+      } else {
+        statusEl.innerHTML = '<span style="color:#e74c3c;font-weight:bold;">😔 AI 获胜。再接再厉！</span>';
+      }
     }
 
     function hasValidMoves(player) {
@@ -327,7 +331,22 @@
       return false;
     }
 
-    // ✅ 优化 AI：执白时更容易赢
+    // ✅ 修改 makeMove：加入胜负检测
+    function makeMove(fromR, fromC, toR, toC) {
+      if (!gameActive || board[fromR][fromC] !== currentPlayer || board[toR][toC] !== 0) return false;
+      board = simulateMove(fromR, fromC, toR, toC, currentPlayer);
+      currentPlayer = 3 - currentPlayer;
+      selectedPiece = null;
+      updateCount();
+      drawBoard();
+
+      if (!checkGameOver() && currentPlayer !== humanPlayer && gameActive) {
+        setTimeout(aiMove, 400);
+      }
+      return true;
+    }
+
+    // ✅ 修改 aiMove：直接更新 board 并检测胜负
     function aiMove() {
       if (!gameActive || currentPlayer === humanPlayer || !hasValidMoves(currentPlayer)) return;
 
@@ -347,7 +366,6 @@
       const isHumanWhite = (humanPlayer === 2);
       const isAIFirstMoveAsBlack = (aiHasMovedFirstAsBlack && currentPlayer === 1);
 
-      // 收集所有能吃子的走法
       const captureMoves = [];
       for (const m of moves) {
         const testBoard = simulateMove(m.fromR, m.fromC, m.toR, m.toC, currentPlayer, true);
@@ -356,34 +374,31 @@
         if (after < before) captureMoves.push(m);
       }
 
-      // ✅ 关键平衡：如果人类执白，AI 有 40% 概率放弃吃子（制造机会）
       if (isHumanWhite && captureMoves.length > 0 && Math.random() < 0.4) {
-        // 故意不用吃子走法
         bestMove = moves[Math.floor(Math.random() * moves.length)];
       } else if (captureMoves.length > 0) {
-        bestMove = captureMoves[0]; // 优先吃子
+        bestMove = captureMoves[0];
       } else if (moves.length > 0) {
         bestMove = moves[Math.floor(Math.random() * moves.length)];
       }
 
-      // ✅ 特殊：AI 第一步（执黑）不主动吃子，给白棋喘息
-      if (isAIFirstMoveAsBlack && bestMove) {
-        board = simulateMove(bestMove.fromR, bestMove.fromC, bestMove.toR, bestMove.toC, currentPlayer, false);
-        aiHasMovedFirstAsBlack = false; // 仅此一次
+      if (bestMove) {
+        if (isAIFirstMoveAsBlack) {
+          board = simulateMove(bestMove.fromR, bestMove.fromC, bestMove.toR, bestMove.toC, currentPlayer, false);
+          aiHasMovedFirstAsBlack = false;
+        } else {
+          board = simulateMove(bestMove.fromR, bestMove.fromC, bestMove.toR, bestMove.toC, currentPlayer);
+        }
         currentPlayer = 3 - currentPlayer;
         updateCount();
-        updateStatus();
         drawBoard();
-        if (currentPlayer !== humanPlayer) setTimeout(aiMove, 400);
-        return;
-      }
 
-      if (bestMove) {
-        setTimeout(() => makeMove(bestMove.fromR, bestMove.fromC, bestMove.toR, bestMove.toC), 300);
+        if (!checkGameOver() && currentPlayer !== humanPlayer && gameActive) {
+          setTimeout(aiMove, 400);
+        }
       }
     }
 
-    // ===== 用户交互 =====
     canvas.addEventListener('click', (e) => {
       if (!gameActive || humanPlayer === null || currentPlayer !== humanPlayer) return;
       if (!hasValidMoves(humanPlayer)) return;
@@ -408,7 +423,6 @@
       }
     });
 
-    // 初始化
     setupInitialBoard();
     drawBoard();
   </script>
