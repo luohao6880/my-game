@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>点击气球大作战 - 难度升级版</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: linear-gradient(to bottom, #6ecbf5, #a3e4ff);
+      font-family: "微软雅黑", sans-serif;
+      overflow: hidden;
+      height: 100vh;
+      user-select: none;
+    }
+
+    #game-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    .balloon {
+      position: absolute;
+      bottom: -100px;
+      width: 60px;
+      height: 80px;
+      border-radius: 50%;
+      cursor: pointer;
+      animation: floatUp 8s forwards, fadeOut 8s forwards;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: bold;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+    }
+
+    @keyframes floatUp {
+      to {
+        transform: translateY(-100vh) translateX(0);
+      }
+    }
+
+    @keyframes fadeOut {
+      0% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+
+    #ui {
+      position: fixed;
+      top: 20px;
+      left: 0;
+      width: 100%;
+      display: flex;
+      justify-content: space-around;
+      color: white;
+      font-size: 24px;
+      text-shadow: 1px 1px 3px rgba(0,0,0,0.7);
+      z-index: 10;
+    }
+
+    #game-over {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0,0,0,0.85);
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: white;
+      font-size: 32px;
+      z-index: 20;
+      text-align: center;
+    }
+
+    #high-score {
+      margin-top: 10px;
+      font-size: 24px;
+      color: gold;
+    }
+
+    button {
+      margin-top: 20px;
+      padding: 12px 24px;
+      font-size: 20px;
+      background: #ff6b6b;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    button:hover {
+      background: #ff5252;
+    }
+  </style>
+</head>
+<body>
+
+<div id="game-container">
+  <div id="ui">
+    <div>得分：<span id="score">0</span></div>
+    <div>时间：<span id="timer">30</span>s</div>
+    <div>生命：<span id="lives">3</span></div>
+  </div>
+  <div id="game-over">
+    <div>游戏结束！</div>
+    <div>最终得分：<span id="final-score">0</span></div>
+    <div id="high-score">历史最高分：--</div>
+    <button onclick="restartGame()">再玩一次</button>
+  </div>
+</div>
+
+<script>
+  let score = 0;
+  let lives = 3;
+  let timeLeft = 30;
+  let gameActive = true;
+  let balloonInterval;
+  let timerInterval;
+
+  const colors = ['#FF6B6B', '#4ECDC4', '#FFE66D', '#1A535C', '#FF9F1C'];
+  const container = document.getElementById('game-container');
+
+  // 初始化最高分显示
+  function showHighScore() {
+    const high = localStorage.getItem('balloonHighScore') || 0;
+    document.getElementById('high-score').textContent = `历史最高分：${high}`;
+  }
+
+  // 更新 UI
+  function updateUI() {
+    document.getElementById('score').textContent = score;
+    document.getElementById('lives').textContent = lives;
+    document.getElementById('timer').textContent = timeLeft;
+  }
+
+  // 创建气球
+  function createBalloon() {
+    if (!gameActive) return;
+
+    const balloon = document.createElement('div');
+    balloon.className = 'balloon';
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    balloon.style.backgroundColor = color;
+    balloon.textContent = '🎈';
+
+    const startX = Math.random() * (window.innerWidth - 60);
+    balloon.style.left = `${startX}px`;
+
+    // 随机水平飘动
+    const drift = (Math.random() - 0.5) * 100;
+    const style = document.createElement('style');
+    style.innerHTML = `
+      @keyframes drift {
+        to { transform: translateY(-100vh) translateX(${drift}px); }
+      }
+    `;
+    document.head.appendChild(style);
+    balloon.style.animation = `floatUp 8s forwards, fadeOut 8s forwards, drift 8s linear`;
+
+    balloon.addEventListener('click', () => {
+      if (!gameActive) return;
+      score++;
+      updateUI();
+      balloon.remove();
+    });
+
+    container.appendChild(balloon);
+
+    // 气球漏掉处理
+    setTimeout(() => {
+      if (balloon.parentNode === container) {
+        balloon.remove();
+        if (gameActive) {
+          lives--;
+          updateUI();
+          if (lives <= 0) endGame();
+        }
+      }
+    }, 8000);
+  }
+
+  // 根据剩余时间动态调整生成间隔（越到后面越快）
+  function getSpawnInterval() {
+    // 时间越少，间隔越短（30s → 800ms, 0s → 300ms）
+    const progress = (30 - timeLeft) / 30; // 0 到 1
+    const minInterval = 300;
+    const maxInterval = 800;
+    return maxInterval - progress * (maxInterval - minInterval);
+  }
+
+  // 启动或更新气球生成器
+  function startOrAdjustBalloonSpawner() {
+    if (balloonInterval) clearInterval(balloonInterval);
+    let currentInterval = getSpawnInterval();
+    balloonInterval = setInterval(() => {
+      if (gameActive) {
+        createBalloon();
+        // 每次生成后重新计算间隔（实现平滑加速）
+        const newInterval = getSpawnInterval();
+        if (Math.abs(newInterval - currentInterval) > 10) {
+          currentInterval = newInterval;
+          clearInterval(balloonInterval);
+          balloonInterval = setInterval(arguments.callee, currentInterval);
+        }
+      }
+    }, currentInterval);
+  }
+
+  // 开始游戏
+  function startGame() {
+    score = 0;
+    lives = 3;
+    timeLeft = 30;
+    gameActive = true;
+    document.getElementById('game-over').style.display = 'none';
+    updateUI();
+
+    // 清空旧气球
+    document.querySelectorAll('.balloon').forEach(el => el.remove());
+
+    // 启动气球生成（带难度递增）
+    startOrAdjustBalloonSpawner();
+
+    // 倒计时
+    clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+      timeLeft--;
+      updateUI();
+      // 每秒可能需要调整生成速度
+      startOrAdjustBalloonSpawner(); 
+      if (timeLeft <= 0) {
+        clearInterval(timerInterval);
+        clearInterval(balloonInterval);
+        endGame();
+      }
+    }, 1000);
+  }
+
+  // 结束游戏 + 保存最高分
+  function endGame() {
+    gameActive = false;
+    clearInterval(timerInterval);
+    clearInterval(balloonInterval);
+
+    // 保存最高分
+    const highScore = parseInt(localStorage.getItem('balloonHighScore') || '0');
+    if (score > highScore) {
+      localStorage.setItem('balloonHighScore', score.toString());
+    }
+
+    // 显示结果
+    document.getElementById('final-score').textContent = score;
+    showHighScore();
+    document.getElementById('game-over').style.display = 'flex';
+  }
+
+  function restartGame() {
+    startGame();
+  }
+
+  // 页面加载
+  window.onload = () => {
+    showHighScore();
+    startGame();
+  };
+</script>
+
+</body>
+</html>
