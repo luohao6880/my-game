@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="format-detection" content="telephone=no" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>4×4 走子吃子棋 · 人机对战</title>
   <style>
     * {
@@ -30,63 +29,21 @@
       font-size: 20px;
       font-weight: bold;
       color: #c0392b;
-      margin-bottom: 20px;
+      margin-bottom: 16px;
       letter-spacing: 1px;
     }
 
-    #color-select {
-      max-width: 320px;
-      margin: 30px auto;
-    }
-    .select-title {
-      font-size: 18px;
-      margin-bottom: 20px;
-      color: #5d4037;
-    }
-    .color-buttons {
-      display: flex;
-      gap: 20px;
-      justify-content: center;
-    }
-    .color-btn {
-      padding: 16px 24px;
-      font-size: 18px;
-      font-weight: 600;
-      border: none;
-      border-radius: 10px;
-      cursor: pointer;
-      transition: transform 0.1s, background 0.2s;
-    }
-    .color-btn.black {
-      background: #2c3e50;
-      color: white;
-    }
-    .color-btn.white {
-      background: #ecf0f1;
-      color: #2c3e50;
-      border: 2px solid #bdc3c7;
-    }
-    .color-btn:active {
-      transform: scale(0.96);
-    }
-
-    #game-area {
-      display: none;
+    .panel {
       width: 100%;
-      max-width: 500px;
+      max-width: 320px;
       margin: 0 auto;
     }
 
-    .left-panel {
-      width: 100%;
-      text-align: left;
+    .status-line {
+      margin: 8px 0;
       font-size: 18px;
-      margin-bottom: 12px;
-      color: #3a2d1d;
-    }
-    .status {
-      margin: 6px 0;
       font-weight: 600;
+      color: #3a2a1d;
     }
 
     canvas {
@@ -96,43 +53,39 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.15);
       cursor: pointer;
       width: 100%;
-      max-width: 320px;
       height: auto;
+      display: block;
       image-rendering: crisp-edges;
     }
 
-    .buttons {
+    .buttons-row {
       display: flex;
-      flex-direction: column;
       gap: 12px;
-      width: 100%;
-      max-width: 300px;
       margin-top: 12px;
+      justify-content: center;
     }
-    button {
-      padding: 14px 20px;
-      font-size: 18px;
-      background: #2980b9;
-      color: white;
+    .btn {
+      padding: 12px 16px;
+      font-size: 16px;
+      font-weight: 600;
       border: none;
       border-radius: 8px;
       cursor: pointer;
-      font-weight: 600;
+      transition: background 0.2s, transform 0.1s;
       -webkit-appearance: none;
-      transition: background 0.2s;
     }
-    button:active {
-      background: #1c6ea4;
-    }
+    .btn.primary { background: #2980b9; color: white; }
+    .btn.black   { background: #2c3e50; color: white; }
+    .btn.white   { background: #ecf0f1; color: #2c3e50; border: 1px solid #bdc3c7; }
+    .btn:active { transform: scale(0.96); }
 
     .hint {
       color: #5d4037;
-      font-size: 16px;
-      margin-top: 20px;
-      max-width: 400px;
-      line-height: 1.6;
-      padding: 0 10px;
+      font-size: 15px;
+      margin-top: 16px;
+      line-height: 1.5;
       text-align: left;
+      padding: 0 10px;
     }
   </style>
 </head>
@@ -140,72 +93,50 @@
   <h1>4×4 走子吃子棋 · 人机对战</h1>
   <div class="author">by 罗浩制作</div>
 
-  <div id="color-select">
-    <div class="select-title">请选择你的执子颜色：</div>
-    <div class="color-buttons">
-      <button class="color-btn black" onclick="startGame(1)">⚫ 执黑<br>（先手）</button>
-      <button class="color-btn white" onclick="startGame(2)">⚪ 执白<br>（后手）</button>
-    </div>
-  </div>
+  <div class="panel">
+    <div class="status-line">黑方剩子：<span id="black-count">6</span></div>
+    <div class="status-line">白方剩子：<span id="white-count">6</span></div>
+    <div class="status-line" id="status">请选择执子颜色</div>
 
-  <div id="game-area">
-    <div class="left-panel">
-      <div class="status">黑方剩子：<span id="black-count">6</span></div>
-      <div class="status">白方剩子：<span id="white-count">6</span></div>
-      <div class="status" id="status">准备中...</div>
+    <!-- ✅ 主面板上的颜色选择按钮 -->
+    <div class="buttons-row" id="color-buttons">
+      <button class="btn black" onclick="chooseColor(1)">⚫ 执黑<br>（先手）</button>
+      <button class="btn white" onclick="chooseColor(2)">⚪ 执白<br>（后手）</button>
     </div>
 
     <canvas id="board" width="320" height="320"></canvas>
 
-    <div class="buttons">
-      <button onclick="initBoard()">重新开始</button>
-      <button onclick="alert('点击己方棋子 → 再点相邻空位走棋')">提示</button>
+    <div class="buttons-row" style="margin-top: 16px;">
+      <button class="btn primary" onclick="resetGame()">重新开始</button>
     </div>
   </div>
 
   <div class="hint">
-    移动后若形成「黑-白-黑」或「白-黑-白」，则吃掉中间敌子。
+    规则：移动己方棋子到相邻空位。若形成「黑-白-黑」或「白-黑-白」直线，则吃掉中间敌子。
   </div>
 
   <script>
     const canvas = document.getElementById('board');
     const dpr = window.devicePixelRatio || 1;
-    let rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
+    // 初始设置 canvas 像素尺寸（防止 getBoundingClientRect 返回 0）
+    canvas.width = 320 * dpr;
+    canvas.height = 320 * dpr;
     const ctx = canvas.getContext('2d');
     ctx.scale(dpr, dpr);
 
     const SIZE = 4;
-    let CELL_SIZE, RADIUS; // 延迟初始化
-
-    // 安全计算尺寸
-    function updateSizes() {
-      rect = canvas.getBoundingClientRect();
-      CELL_SIZE = rect.width / (SIZE + 1);
-      // ✅ 关键修复：确保 RADIUS 不为负数
-      RADIUS = Math.max(CELL_SIZE / 2 - 4, 2);
-    }
+    let CELL_SIZE = 320 / (SIZE + 1); // 初始值基于 canvas 宽度
+    let RADIUS = Math.max(CELL_SIZE / 2 - 4, 2); // ✅ 防负数
 
     let board = [];
     let currentPlayer = 1;
-    let humanPlayer = 1;
+    let humanPlayer = null; // 未选择
     let selectedPiece = null;
     let gameActive = false;
 
-    function startGame(color) {
-      humanPlayer = color;
-      document.getElementById('color-select').style.display = 'none';
-      document.getElementById('game-area').style.display = 'block';
-      
-      // ✅ 在 initBoard 前确保尺寸已计算
-      updateSizes();
-      initBoard();
-    }
-
-    function initBoard() {
+    // 初始化棋盘布局（固定初始阵型）
+    function setupInitialBoard() {
       board = Array(SIZE).fill().map(() => Array(SIZE).fill(0));
-      
       for (let r = 0; r < 2; r++) {
         for (let c = 0; c < 4; c++) {
           if ((r === 0 && c !== 1) || (r === 1 && c !== 1)) {
@@ -220,28 +151,46 @@
           }
         }
       }
+    }
 
+    // 选择颜色
+    function chooseColor(color) {
+      if (humanPlayer !== null) return; // 已选择过
+      humanPlayer = color;
+      document.getElementById('color-buttons').style.display = 'none';
       gameActive = true;
-      selectedPiece = null;
+      setupInitialBoard();
       updateCount();
+      currentPlayer = 1; // 黑棋总是先走
+      updateStatus();
 
-      if (humanPlayer === 1) {
-        currentPlayer = 1;
-        updateStatus();
-      } else {
-        currentPlayer = 1;
-        updateStatus();
-        setTimeout(aiMove, 600);
+      if (humanPlayer === 2) {
+        // 玩家执白，AI（黑）先走
+        setTimeout(aiMove, 500);
       }
+      drawBoard();
+    }
 
+    function resetGame() {
+      humanPlayer = null;
+      gameActive = false;
+      selectedPiece = null;
+      document.getElementById('color-buttons').style.display = 'flex';
+      document.getElementById('status').textContent = '请选择执子颜色';
+      // 重绘空棋盘（但保留初始布局视觉）
+      setupInitialBoard();
       drawBoard();
     }
 
     function drawBoard() {
-      // ✅ 每次绘制前都重新计算尺寸
-      updateSizes();
-      
-      ctx.clearRect(0, 0, rect.width, rect.height);
+      // 动态适配 canvas 显示尺寸
+      const displayWidth = canvas.clientWidth;
+      CELL_SIZE = displayWidth / (SIZE + 1);
+      RADIUS = Math.max(CELL_SIZE / 2 - 4, 2);
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // 绘制网格
       ctx.strokeStyle = '#3a2a1d';
       ctx.lineWidth = 1.5;
       for (let i = 0; i < SIZE; i++) {
@@ -256,17 +205,20 @@
         ctx.stroke();
       }
 
+      // 绘制棋子
       for (let r = 0; r < SIZE; r++) {
         for (let c = 0; c < SIZE; c++) {
+          const x = CELL_SIZE * (c + 1);
+          const y = CELL_SIZE * (r + 1);
           if (board[r][c] === 1) {
             ctx.fillStyle = '#000';
             ctx.beginPath();
-            ctx.arc(CELL_SIZE * (c + 1), CELL_SIZE * (r + 1), RADIUS, 0, Math.PI * 2);
+            ctx.arc(x, y, RADIUS, 0, Math.PI * 2);
             ctx.fill();
           } else if (board[r][c] === 2) {
             ctx.fillStyle = '#fff';
             ctx.beginPath();
-            ctx.arc(CELL_SIZE * (c + 1), CELL_SIZE * (r + 1), RADIUS, 0, Math.PI * 2);
+            ctx.arc(x, y, RADIUS, 0, Math.PI * 2);
             ctx.fill();
             ctx.strokeStyle = '#000';
             ctx.lineWidth = 1.5;
@@ -277,8 +229,7 @@
             ctx.strokeStyle = '#e74c3c';
             ctx.lineWidth = 3;
             ctx.beginPath();
-            // ✅ 选中高亮也要用安全的 RADIUS
-            ctx.arc(CELL_SIZE * (c + 1), CELL_SIZE * (r + 1), RADIUS + 5, 0, Math.PI * 2);
+            ctx.arc(x, y, RADIUS + 4, 0, Math.PI * 2);
             ctx.stroke();
           }
         }
@@ -293,22 +244,19 @@
     }
 
     function updateStatus() {
-      if (!gameActive) return;
       const statusEl = document.getElementById('status');
+      if (!gameActive) return;
       if (currentPlayer === humanPlayer) {
-        statusEl.textContent = currentPlayer === 1 
-          ? '轮到：⚫ 黑棋（你）' 
-          : '轮到：⚪ 白棋（你）';
+        statusEl.textContent = currentPlayer === 1 ? '轮到：⚫ 黑棋（你）' : '轮到：⚪ 白棋（你）';
       } else {
-        statusEl.textContent = currentPlayer === 1 
-          ? '轮到：⚫ 黑棋（AI）' 
-          : '轮到：⚪ 白棋（AI）';
+        statusEl.textContent = currentPlayer === 1 ? '轮到：⚫ 黑棋（AI）' : '轮到：⚪ 白棋（AI）';
       }
     }
 
+    // ===== 游戏逻辑（简化版，保持原规则）=====
     function getAdjacentEmpty(r, c) {
-      const dirs = [[-1,0], [1,0], [0,-1], [0,1]];
-      return dirs.map(([dr, dc]) => {
+      const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+      return dirs.map(([dr,dc]) => {
         const nr = r + dr, nc = c + dc;
         if (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && board[nr][nc] === 0) {
           return [nr, nc];
@@ -332,112 +280,51 @@
       newBoard[fromR][fromC] = 0;
 
       const directions = [[0,1], [1,0]];
-      let ate = false;
-
       for (const [dr, dc] of directions) {
         let lineCells = [], lineValues = [];
-
         let r = toR, c = toC;
         while (r >= 0 && r < SIZE && c >= 0 && c < SIZE) {
-          lineCells.unshift([r, c]);
-          lineValues.unshift(newBoard[r][c]);
+          lineCells.unshift([r, c]); lineValues.unshift(newBoard[r][c]);
           r -= dr; c -= dc;
         }
-
         r = toR + dr; c = toC + dc;
         while (r >= 0 && r < SIZE && c >= 0 && c < SIZE) {
-          lineCells.push([r, c]);
-          lineValues.push(newBoard[r][c]);
+          lineCells.push([r, c]); lineValues.push(newBoard[r][c]);
           r += dr; c += dc;
         }
-
-        const captureIndex = checkLineForCapture(lineValues, player);
-        if (captureIndex !== -1) {
-          const [er, ec] = lineCells[captureIndex];
-          newBoard[er][ec] = 0;
-          ate = true;
-        }
+        const idx = checkLineForCapture(lineValues, player);
+        if (idx !== -1) newBoard[lineCells[idx][0]][lineCells[idx][1]] = 0;
       }
-
-      return { board: newBoard, ate };
-    }
-
-    function tryEatAfterMove(fromR, fromC, toR, toC, player) {
-      const result = simulateMove(fromR, fromC, toR, toC, player);
-      board = result.board;
-      return result.ate;
-    }
-
-    function hasValidMoves(player) {
-      for (let r = 0; r < SIZE; r++) {
-        for (let c = 0; c < SIZE; c++) {
-          if (board[r][c] === player && getAdjacentEmpty(r, c).length > 0) {
-            return true;
-          }
-        }
-      }
-      return false;
-    }
-
-    function checkGameOver() {
-      if (!gameActive) return false;
-      const black = board.flat().filter(x => x === 1).length;
-      const white = board.flat().filter(x => x === 2).length;
-
-      if (!hasValidMoves(currentPlayer)) {
-        let winnerMessage = '';
-        if (currentPlayer === humanPlayer) {
-          winnerMessage = 'AI 获胜！';
-        } else {
-          winnerMessage = '你获胜了！🎉';
-        }
-        alert(winnerMessage);
-        gameActive = false;
-        document.getElementById('status').textContent = '游戏已结束';
-        return true;
-      }
-
-      if (black === 1 && white === 1) {
-        alert('双方均剩1子，平局！');
-        gameActive = false;
-        document.getElementById('status').textContent = '游戏已结束';
-        return true;
-      }
-
-      return false;
+      return newBoard;
     }
 
     function makeMove(fromR, fromC, toR, toC) {
       if (!gameActive || board[fromR][fromC] !== currentPlayer || board[toR][toC] !== 0) return false;
-
-      board[toR][toC] = currentPlayer;
-      board[fromR][fromC] = 0;
-      tryEatAfterMove(fromR, fromC, toR, toC, currentPlayer);
-
+      board = simulateMove(fromR, fromC, toR, toC, currentPlayer);
       currentPlayer = 3 - currentPlayer;
       selectedPiece = null;
       updateCount();
       updateStatus();
       drawBoard();
 
-      if (checkGameOver()) return true;
-      if (gameActive && currentPlayer !== humanPlayer) {
-        setTimeout(aiMove, 300);
+      if (currentPlayer !== humanPlayer && gameActive) {
+        setTimeout(aiMove, 400);
       }
       return true;
     }
 
-    function aiMove() {
-      if (!gameActive || currentPlayer === humanPlayer) return;
+    function hasValidMoves(player) {
+      for (let r = 0; r < SIZE; r++)
+        for (let c = 0; c < SIZE; c++)
+          if (board[r][c] === player && getAdjacentEmpty(r, c).length > 0)
+            return true;
+      return false;
+    }
 
-      const statusEl = document.getElementById('status');
-      statusEl.textContent = currentPlayer === 1 
-        ? '轮到：⚫ 黑棋（AI 思考中...）'
-        : '轮到：⚪ 白棋（AI 思考中...）';
+    function aiMove() {
+      if (!gameActive || currentPlayer === humanPlayer || !hasValidMoves(currentPlayer)) return;
 
       const moves = [];
-      let bestMove = null;
-
       for (let r = 0; r < SIZE; r++) {
         for (let c = 0; c < SIZE; c++) {
           if (board[r][c] === currentPlayer) {
@@ -449,33 +336,25 @@
         }
       }
 
-      for (const move of moves) {
-        const { ate } = simulateMove(move.fromR, move.fromC, move.toR, move.toC, currentPlayer);
-        if (ate) {
-          bestMove = move;
-          break;
-        }
+      let bestMove = null;
+      for (const m of moves) {
+        const testBoard = simulateMove(m.fromR, m.fromC, m.toR, m.toC, currentPlayer);
+        const captured = board.flat().filter(x => x !== 0).length - testBoard.flat().filter(x => x !== 0).length;
+        if (captured > 0) { bestMove = m; break; }
       }
-
       if (!bestMove && moves.length > 0) {
         bestMove = moves[Math.floor(Math.random() * moves.length)];
       }
 
       if (bestMove) {
-        setTimeout(() => {
-          makeMove(bestMove.fromR, bestMove.fromC, bestMove.toR, bestMove.toC);
-        }, 600);
-      } else {
-        checkGameOver();
+        setTimeout(() => makeMove(bestMove.fromR, bestMove.fromC, bestMove.toR, bestMove.toC), 300);
       }
     }
 
+    // ===== 鼠标交互 =====
     canvas.addEventListener('click', (e) => {
-      if (!gameActive || currentPlayer !== humanPlayer) return;
-      if (!hasValidMoves(humanPlayer)) {
-        checkGameOver();
-        return;
-      }
+      if (!gameActive || humanPlayer === null || currentPlayer !== humanPlayer) return;
+      if (!hasValidMoves(humanPlayer)) return;
 
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
@@ -486,8 +365,8 @@
       if (row < 0 || row >= SIZE || col < 0 || col >= SIZE) return;
 
       if (selectedPiece) {
-        const adj = getAdjacentEmpty(selectedPiece.row, selectedPiece.col);
-        const canMove = adj.some(([r, c]) => r === row && c === col);
+        const canMove = getAdjacentEmpty(selectedPiece.row, selectedPiece.col)
+          .some(([r, c]) => r === row && c === col);
         if (canMove) {
           makeMove(selectedPiece.row, selectedPiece.col, row, col);
         }
@@ -500,6 +379,10 @@
         }
       }
     });
+
+    // 初始绘制
+    setupInitialBoard();
+    drawBoard();
   </script>
 </body>
 </html>
