@@ -34,14 +34,47 @@
       letter-spacing: 1px;
     }
 
-    .game-container {
+    #color-select {
+      max-width: 320px;
+      margin: 30px auto;
+    }
+    .select-title {
+      font-size: 18px;
+      margin-bottom: 20px;
+      color: #5d4037;
+    }
+    .color-buttons {
       display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 16px;
+      gap: 20px;
+      justify-content: center;
+    }
+    .color-btn {
+      padding: 16px 24px;
+      font-size: 18px;
+      font-weight: 600;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: transform 0.1s, background 0.2s;
+    }
+    .color-btn.black {
+      background: #2c3e50;
+      color: white;
+    }
+    .color-btn.white {
+      background: #ecf0f1;
+      color: #2c3e50;
+      border: 2px solid #bdc3c7;
+    }
+    .color-btn:active {
+      transform: scale(0.96);
+    }
+
+    #game-area {
+      display: none;
+      width: 100%;
       max-width: 500px;
       margin: 0 auto;
-      width: 100%;
     }
 
     .left-panel {
@@ -49,7 +82,7 @@
       text-align: left;
       font-size: 18px;
       margin-bottom: 12px;
-      color: #3a2a1d;
+      color: #3a2d1d;
     }
     .status {
       margin: 6px 0;
@@ -107,11 +140,19 @@
   <h1>4×4 走子吃子棋 · 人机对战</h1>
   <div class="author">by 罗浩制作</div>
 
-  <div class="game-container">
+  <div id="color-select">
+    <div class="select-title">请选择你的执子颜色：</div>
+    <div class="color-buttons">
+      <button class="color-btn black" onclick="startGame(1)">⚫ 执黑<br>（先手）</button>
+      <button class="color-btn white" onclick="startGame(2)">⚪ 执白<br>（后手）</button>
+    </div>
+  </div>
+
+  <div id="game-area">
     <div class="left-panel">
       <div class="status">黑方剩子：<span id="black-count">6</span></div>
       <div class="status">白方剩子：<span id="white-count">6</span></div>
-      <div class="status" id="status">请选择执子颜色</div>
+      <div class="status" id="status">准备中...</div>
     </div>
 
     <canvas id="board" width="320" height="320"></canvas>
@@ -136,23 +177,29 @@
     ctx.scale(dpr, dpr);
 
     const SIZE = 4;
-    let CELL_SIZE = rect.width / (SIZE + 1);
-    const RADIUS = CELL_SIZE / 2 - 4;
+    let CELL_SIZE, RADIUS; // 延迟初始化
+
+    // 安全计算尺寸
+    function updateSizes() {
+      rect = canvas.getBoundingClientRect();
+      CELL_SIZE = rect.width / (SIZE + 1);
+      // ✅ 关键修复：确保 RADIUS 不为负数
+      RADIUS = Math.max(CELL_SIZE / 2 - 4, 2);
+    }
 
     let board = [];
-    let currentPlayer = 1; // 1=黑, 2=白
-    let humanPlayer = 1;   // 默认执黑（1），可改为 2（白）
+    let currentPlayer = 1;
+    let humanPlayer = 1;
     let selectedPiece = null;
     let gameActive = false;
 
-    // 启动时选择执子颜色
-    function chooseColor() {
-      const choice = prompt("你想执黑还是执白？\n输入 b 表示黑棋（先手），w 表示白棋（后手）", "b");
-      if (choice && choice.toLowerCase().startsWith('w')) {
-        humanPlayer = 2; // 玩家执白
-      } else {
-        humanPlayer = 1; // 玩家执黑
-      }
+    function startGame(color) {
+      humanPlayer = color;
+      document.getElementById('color-select').style.display = 'none';
+      document.getElementById('game-area').style.display = 'block';
+      
+      // ✅ 在 initBoard 前确保尺寸已计算
+      updateSizes();
       initBoard();
     }
 
@@ -179,20 +226,21 @@
       updateCount();
 
       if (humanPlayer === 1) {
-        currentPlayer = 1; // 玩家先手
+        currentPlayer = 1;
         updateStatus();
       } else {
-        currentPlayer = 1; // AI 先走（黑棋）
+        currentPlayer = 1;
         updateStatus();
-        setTimeout(aiMove, 600); // AI 先走一步
+        setTimeout(aiMove, 600);
       }
 
       drawBoard();
     }
 
     function drawBoard() {
-      rect = canvas.getBoundingClientRect();
-      CELL_SIZE = rect.width / (SIZE + 1);
+      // ✅ 每次绘制前都重新计算尺寸
+      updateSizes();
+      
       ctx.clearRect(0, 0, rect.width, rect.height);
       ctx.strokeStyle = '#3a2a1d';
       ctx.lineWidth = 1.5;
@@ -229,6 +277,7 @@
             ctx.strokeStyle = '#e74c3c';
             ctx.lineWidth = 3;
             ctx.beginPath();
+            // ✅ 选中高亮也要用安全的 RADIUS
             ctx.arc(CELL_SIZE * (c + 1), CELL_SIZE * (r + 1), RADIUS + 5, 0, Math.PI * 2);
             ctx.stroke();
           }
@@ -372,6 +421,9 @@
       drawBoard();
 
       if (checkGameOver()) return true;
+      if (gameActive && currentPlayer !== humanPlayer) {
+        setTimeout(aiMove, 300);
+      }
       return true;
     }
 
@@ -412,9 +464,6 @@
       if (bestMove) {
         setTimeout(() => {
           makeMove(bestMove.fromR, bestMove.fromC, bestMove.toR, bestMove.toC);
-          if (gameActive && currentPlayer === humanPlayer) {
-            updateStatus();
-          }
         }, 600);
       } else {
         checkGameOver();
@@ -440,11 +489,7 @@
         const adj = getAdjacentEmpty(selectedPiece.row, selectedPiece.col);
         const canMove = adj.some(([r, c]) => r === row && c === col);
         if (canMove) {
-          if (makeMove(selectedPiece.row, selectedPiece.col, row, col)) {
-            if (gameActive && currentPlayer !== humanPlayer) {
-              setTimeout(aiMove, 300);
-            }
-          }
+          makeMove(selectedPiece.row, selectedPiece.col, row, col);
         }
         selectedPiece = null;
         drawBoard();
@@ -455,9 +500,6 @@
         }
       }
     });
-
-    // 启动游戏
-    chooseColor();
   </script>
 </body>
 </html>
