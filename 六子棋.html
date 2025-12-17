@@ -2,12 +2,9 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <!-- 关键：微信兼容设置 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <meta name="format-detection" content="telephone=no" /> <!-- 禁用电话识别 -->
+  <meta name="format-detection" content="telephone=no" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
-
   <title>4×4 走子吃子棋 · 人机对战</title>
   <style>
     * {
@@ -37,7 +34,6 @@
       letter-spacing: 1px;
     }
 
-    /* 核心：微信端必须使用竖屏堆叠布局 */
     .game-container {
       display: flex;
       flex-direction: column;
@@ -51,7 +47,7 @@
     .left-panel {
       width: 100%;
       text-align: left;
-      font-size: 18px; /* 微信端增大字体 */
+      font-size: 18px;
       margin-bottom: 12px;
       color: #3a2a1d;
     }
@@ -105,39 +101,9 @@
       padding: 0 10px;
       text-align: left;
     }
-
-    /* 适配微信横屏/竖屏切换 */
-    @media (max-width: 480px) {
-      .game-container {
-        flex-direction: column;
-        align-items: center;
-      }
-      .left-panel {
-        width: 100%;
-        text-align: center;
-        margin-bottom: 16px;
-      }
-      canvas {
-        width: 100%;
-        max-width: 320px;
-        height: auto;
-      }
-      .buttons {
-        width: 100%;
-        max-width: 300px;
-      }
-    }
-
-    /* 防止微信自动缩放导致模糊 */
-    .no-zoom {
-      -webkit-user-select: none;
-      -moz-user-select: none;
-      -ms-user-select: none;
-      user-select: none;
-    }
   </style>
 </head>
-<body class="no-zoom">
+<body>
   <h1>4×4 走子吃子棋 · 人机对战</h1>
   <div class="author">by 罗浩制作</div>
 
@@ -145,7 +111,7 @@
     <div class="left-panel">
       <div class="status">黑方剩子：<span id="black-count">6</span></div>
       <div class="status">白方剩子：<span id="white-count">6</span></div>
-      <div class="status" id="status">轮到：⚫ 黑棋（你）</div>
+      <div class="status" id="status">请选择执子颜色</div>
     </div>
 
     <canvas id="board" width="320" height="320"></canvas>
@@ -157,27 +123,38 @@
   </div>
 
   <div class="hint">
-    你执黑棋。点击己方棋子 → 再点击相邻空位移动。<br>
     移动后若形成「黑-白-黑」或「白-黑-白」，则吃掉中间敌子。
   </div>
 
   <script>
     const canvas = document.getElementById('board');
     const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
+    let rect = canvas.getBoundingClientRect();
     canvas.width = rect.width * dpr;
     canvas.height = rect.height * dpr;
     const ctx = canvas.getContext('2d');
     ctx.scale(dpr, dpr);
 
     const SIZE = 4;
-    const CELL_SIZE = rect.width / (SIZE + 1);
+    let CELL_SIZE = rect.width / (SIZE + 1);
     const RADIUS = CELL_SIZE / 2 - 4;
 
     let board = [];
-    let currentPlayer = 1; // 1=黑（玩家）, 2=白（AI）
+    let currentPlayer = 1; // 1=黑, 2=白
+    let humanPlayer = 1;   // 默认执黑（1），可改为 2（白）
     let selectedPiece = null;
-    let gameActive = true;
+    let gameActive = false;
+
+    // 启动时选择执子颜色
+    function chooseColor() {
+      const choice = prompt("你想执黑还是执白？\n输入 b 表示黑棋（先手），w 表示白棋（后手）", "b");
+      if (choice && choice.toLowerCase().startsWith('w')) {
+        humanPlayer = 2; // 玩家执白
+      } else {
+        humanPlayer = 1; // 玩家执黑
+      }
+      initBoard();
+    }
 
     function initBoard() {
       board = Array(SIZE).fill().map(() => Array(SIZE).fill(0));
@@ -197,15 +174,25 @@
         }
       }
 
-      currentPlayer = 1;
-      selectedPiece = null;
       gameActive = true;
+      selectedPiece = null;
       updateCount();
-      updateStatus();
+
+      if (humanPlayer === 1) {
+        currentPlayer = 1; // 玩家先手
+        updateStatus();
+      } else {
+        currentPlayer = 1; // AI 先走（黑棋）
+        updateStatus();
+        setTimeout(aiMove, 600); // AI 先走一步
+      }
+
       drawBoard();
     }
 
     function drawBoard() {
+      rect = canvas.getBoundingClientRect();
+      CELL_SIZE = rect.width / (SIZE + 1);
       ctx.clearRect(0, 0, rect.width, rect.height);
       ctx.strokeStyle = '#3a2a1d';
       ctx.lineWidth = 1.5;
@@ -258,13 +245,16 @@
 
     function updateStatus() {
       if (!gameActive) return;
-      if (!hasValidMoves(currentPlayer)) {
-        checkGameOver();
-        return;
+      const statusEl = document.getElementById('status');
+      if (currentPlayer === humanPlayer) {
+        statusEl.textContent = currentPlayer === 1 
+          ? '轮到：⚫ 黑棋（你）' 
+          : '轮到：⚪ 白棋（你）';
+      } else {
+        statusEl.textContent = currentPlayer === 1 
+          ? '轮到：⚫ 黑棋（AI）' 
+          : '轮到：⚪ 白棋（AI）';
       }
-      statusEl.textContent = currentPlayer === 1 
-        ? '轮到：⚫ 黑棋（你）' 
-        : '轮到：⚪ 白棋（AI）';
     }
 
     function getAdjacentEmpty(r, c) {
@@ -347,21 +337,21 @@
 
       if (!hasValidMoves(currentPlayer)) {
         let winnerMessage = '';
-        if (currentPlayer === 1) {
-          winnerMessage = '白棋（AI）获胜！';
+        if (currentPlayer === humanPlayer) {
+          winnerMessage = 'AI 获胜！';
         } else {
-          winnerMessage = '黑棋（你）获胜！';
+          winnerMessage = '你获胜了！🎉';
         }
         alert(winnerMessage);
         gameActive = false;
-        statusEl.textContent = '游戏已结束';
+        document.getElementById('status').textContent = '游戏已结束';
         return true;
       }
 
       if (black === 1 && white === 1) {
         alert('双方均剩1子，平局！');
         gameActive = false;
-        statusEl.textContent = '游戏已结束';
+        document.getElementById('status').textContent = '游戏已结束';
         return true;
       }
 
@@ -386,16 +376,19 @@
     }
 
     function aiMove() {
-      if (!gameActive || currentPlayer !== 2) return;
+      if (!gameActive || currentPlayer === humanPlayer) return;
 
-      statusEl.textContent = '轮到：⚪ 白棋（AI 思考中...）';
+      const statusEl = document.getElementById('status');
+      statusEl.textContent = currentPlayer === 1 
+        ? '轮到：⚫ 黑棋（AI 思考中...）'
+        : '轮到：⚪ 白棋（AI 思考中...）';
 
       const moves = [];
       let bestMove = null;
 
       for (let r = 0; r < SIZE; r++) {
         for (let c = 0; c < SIZE; c++) {
-          if (board[r][c] === 2) {
+          if (board[r][c] === currentPlayer) {
             const adj = getAdjacentEmpty(r, c);
             for (const [nr, nc] of adj) {
               moves.push({ fromR: r, fromC: c, toR: nr, toC: nc });
@@ -405,7 +398,7 @@
       }
 
       for (const move of moves) {
-        const { ate } = simulateMove(move.fromR, move.fromC, move.toR, move.toC, 2);
+        const { ate } = simulateMove(move.fromR, move.fromC, move.toR, move.toC, currentPlayer);
         if (ate) {
           bestMove = move;
           break;
@@ -419,18 +412,18 @@
       if (bestMove) {
         setTimeout(() => {
           makeMove(bestMove.fromR, bestMove.fromC, bestMove.toR, bestMove.toC);
+          if (gameActive && currentPlayer === humanPlayer) {
+            updateStatus();
+          }
         }, 600);
       } else {
         checkGameOver();
-        updateStatus();
       }
     }
 
-    const statusEl = document.getElementById('status');
-
     canvas.addEventListener('click', (e) => {
-      if (!gameActive || currentPlayer !== 1) return;
-      if (!hasValidMoves(1)) {
+      if (!gameActive || currentPlayer !== humanPlayer) return;
+      if (!hasValidMoves(humanPlayer)) {
         checkGameOver();
         return;
       }
@@ -448,7 +441,7 @@
         const canMove = adj.some(([r, c]) => r === row && c === col);
         if (canMove) {
           if (makeMove(selectedPiece.row, selectedPiece.col, row, col)) {
-            if (gameActive) {
+            if (gameActive && currentPlayer !== humanPlayer) {
               setTimeout(aiMove, 300);
             }
           }
@@ -456,14 +449,15 @@
         selectedPiece = null;
         drawBoard();
       } else {
-        if (board[row][col] === currentPlayer) {
+        if (board[row][col] === humanPlayer) {
           selectedPiece = { row, col };
           drawBoard();
         }
       }
     });
 
-    initBoard();
+    // 启动游戏
+    chooseColor();
   </script>
 </body>
 </html>
