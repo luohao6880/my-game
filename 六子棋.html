@@ -2,7 +2,12 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
+  <!-- 关键：微信兼容设置 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="format-detection" content="telephone=no" /> <!-- 禁用电话识别 -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+
   <title>4×4 走子吃子棋 · 人机对战</title>
   <style>
     * {
@@ -31,46 +36,53 @@
       margin-bottom: 20px;
       letter-spacing: 1px;
     }
+
+    /* 核心：微信端必须使用竖屏堆叠布局 */
     .game-container {
       display: flex;
-      justify-content: center;
-      align-items: flex-start;
+      flex-direction: column;
+      align-items: center;
       gap: 16px;
       max-width: 500px;
       margin: 0 auto;
-      flex-wrap: wrap;
+      width: 100%;
     }
+
     .left-panel {
-      width: 100px;
+      width: 100%;
       text-align: left;
-      font-size: 16px;
-      min-width: 100px;
-      margin-right: 16px; /* 防止紧贴棋盘 */
-    }
-    .status {
-      margin: 8px 0;
-      font-weight: 600;
+      font-size: 18px; /* 微信端增大字体 */
+      margin-bottom: 12px;
       color: #3a2a1d;
     }
+    .status {
+      margin: 6px 0;
+      font-weight: 600;
+    }
+
     canvas {
       background: #e8c596;
       border: 2px solid #a67c52;
       border-radius: 8px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.15);
       cursor: pointer;
-      margin: 8px 0;
-      /* 适配高 DPI 屏幕 */
+      width: 100%;
+      max-width: 320px;
+      height: auto;
       image-rendering: crisp-edges;
     }
+
     .buttons {
       display: flex;
       flex-direction: column;
       gap: 12px;
+      width: 100%;
+      max-width: 300px;
       margin-top: 12px;
     }
     button {
-      padding: 12px 20px;
-      font-size: 17px;
+      padding: 14px 20px;
+      font-size: 18px;
       background: #2980b9;
       color: white;
       border: none;
@@ -78,20 +90,23 @@
       cursor: pointer;
       font-weight: 600;
       -webkit-appearance: none;
+      transition: background 0.2s;
     }
     button:active {
       background: #1c6ea4;
     }
+
     .hint {
       color: #5d4037;
-      font-size: 15px;
+      font-size: 16px;
       margin-top: 20px;
       max-width: 400px;
-      line-height: 1.5;
+      line-height: 1.6;
       padding: 0 10px;
+      text-align: left;
     }
 
-    /* 关键：移动端堆叠布局，避免遮挡 */
+    /* 适配微信横屏/竖屏切换 */
     @media (max-width: 480px) {
       .game-container {
         flex-direction: column;
@@ -113,16 +128,16 @@
       }
     }
 
-    /* 确保文本不会被裁剪 */
-    .left-panel,
-    .author,
-    .hint {
-      overflow: visible;
-      white-space: normal;
+    /* 防止微信自动缩放导致模糊 */
+    .no-zoom {
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
     }
   </style>
 </head>
-<body>
+<body class="no-zoom">
   <h1>4×4 走子吃子棋 · 人机对战</h1>
   <div class="author">by 罗浩制作</div>
 
