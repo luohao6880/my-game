@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>4x4 走子吃子棋 · 人机对战</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f0e6d2;
+      text-align: center;
+      padding: 20px;
+      margin: 0;
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 4px;
+      font-size: 26px;
+    }
+    .author {
+      font-size: 18px;           /* 放大字号 */
+      font-weight: bold;         /* 加粗 */
+      color: #c0392b;            /* 深红色，更突出 */
+      margin-bottom: 16px;
+      letter-spacing: 1px;       /* 字母间距稍宽 */
+    }
+    .game-container {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 20px;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .left-panel {
+      width: 120px;
+      text-align: left;
+      font-size: 14px;
+    }
+    .status {
+      margin: 10px 0;
+      font-weight: bold;
+      color: #2c3e50;
+    }
+    canvas {
+      background: #e8c596;
+      border: 2px solid #a67c52;
+      border-radius: 6px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+      cursor: pointer;
+    }
+    button {
+      margin-top: 12px;
+      padding: 8px 16px;
+      font-size: 16px;
+      background: #3498db;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #2980b9;
+    }
+    .hint {
+      color: #666;
+      font-size: 14px;
+      margin-top: 12px;
+      max-width: 480px;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <h1>4×4 走子吃子棋 · 人机对战</h1>
+  <div class="author">by 罗浩制作</div>
+
+  <div class="game-container">
+    <div class="left-panel">
+      <div class="status">黑方剩子：<span id="black-count">6</span></div>
+      <div class="status">白方剩子：<span id="white-count">6</span></div>
+      <div class="status" id="status">轮到：⚫ 黑棋（你）</div>
+    </div>
+
+    <canvas id="board" width="320" height="320"></canvas>
+
+    <div class="right-panel">
+      <button onclick="initBoard()">重新开始</button>
+      <button onclick="alert('点击己方棋子再点空位即可走棋')">提示</button>
+    </div>
+  </div>
+
+  <div class="hint">
+    你执黑棋。点击己方棋子 → 再点击相邻空位移动。<br>
+    移动后若形成「黑-白-黑」或「白-黑-白」，则吃掉中间敌子。
+  </div>
+
+  <script>
+    const SIZE = 4;
+    const canvas = document.getElementById('board');
+    const ctx = canvas.getContext('2d');
+    const statusEl = document.getElementById('status');
+    const CELL_SIZE = canvas.width / (SIZE + 1);
+    const RADIUS = CELL_SIZE / 2 - 4;
+
+    let board = [];
+    let currentPlayer = 1; // 1=黑（玩家）, 2=白（AI）
+    let selectedPiece = null;
+    let gameActive = true;
+
+    function initBoard() {
+      board = Array(SIZE).fill().map(() => Array(SIZE).fill(0));
+      
+      for (let r = 0; r < 2; r++) {
+        for (let c = 0; c < 4; c++) {
+          if ((r === 0 && c !== 1) || (r === 1 && c !== 1)) {
+            board[r][c] = 1;
+          }
+        }
+      }
+      for (let r = 2; r < 4; r++) {
+        for (let c = 0; c < 4; c++) {
+          if ((r === 2 && c !== 1) || (r === 3 && c !== 1)) {
+            board[r][c] = 2;
+          }
+        }
+      }
+
+      currentPlayer = 1;
+      selectedPiece = null;
+      gameActive = true;
+      updateCount();
+      updateStatus();
+      drawBoard();
+    }
+
+    function drawBoard() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 1.5;
+      for (let i = 0; i < SIZE; i++) {
+        ctx.beginPath();
+        ctx.moveTo(CELL_SIZE, CELL_SIZE * (i + 1));
+        ctx.lineTo(CELL_SIZE * SIZE, CELL_SIZE * (i + 1));
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(CELL_SIZE * (i + 1), CELL_SIZE);
+        ctx.lineTo(CELL_SIZE * (i + 1), CELL_SIZE * SIZE);
+        ctx.stroke();
+      }
+
+      for (let r = 0; r < SIZE; r++) {
+        for (let c = 0; c < SIZE; c++) {
+          if (board[r][c] === 1) {
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.arc(CELL_SIZE * (c + 1), CELL_SIZE * (r + 1), RADIUS, 0, Math.PI * 2);
+            ctx.fill();
+          } else if (board[r][c] === 2) {
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(CELL_SIZE * (c + 1), CELL_SIZE * (r + 1), RADIUS, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+          }
+
+          if (selectedPiece && selectedPiece.row === r && selectedPiece.col === c) {
+            ctx.strokeStyle = '#ff4444';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(CELL_SIZE * (c + 1), CELL_SIZE * (r + 1), RADIUS + 5, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+        }
+      }
+    }
+
+    function updateCount() {
+      const black = board.flat().filter(x => x === 1).length;
+      const white = board.flat().filter(x => x === 2).length;
+      document.getElementById('black-count').textContent = black;
+      document.getElementById('white-count').textContent = white;
+    }
+
+    function updateStatus() {
+      if (!gameActive) return;
+      if (!hasValidMoves(currentPlayer)) {
+        checkGameOver();
+        return;
+      }
+      statusEl.textContent = currentPlayer === 1 
+        ? '轮到：⚫ 黑棋（你）' 
+        : '轮到：⚪ 白棋（AI）';
+    }
+
+    function getAdjacentEmpty(r, c) {
+      const dirs = [[-1,0], [1,0], [0,-1], [0,1]];
+      return dirs.map(([dr, dc]) => {
+        const nr = r + dr, nc = c + dc;
+        if (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && board[nr][nc] === 0) {
+          return [nr, nc];
+        }
+        return null;
+      }).filter(Boolean);
+    }
+
+    function checkLineForCapture(line, player) {
+      for (let i = 1; i < line.length - 1; i++) {
+        if (line[i-1] === player && line[i] !== 0 && line[i] !== player && line[i+1] === player) {
+          return i;
+        }
+      }
+      return -1;
+    }
+
+    function simulateMove(fromR, fromC, toR, toC, player) {
+      const newBoard = board.map(row => [...row]);
+      newBoard[toR][toC] = player;
+      newBoard[fromR][fromC] = 0;
+
+      const directions = [[0,1], [1,0]];
+      let ate = false;
+
+      for (const [dr, dc] of directions) {
+        let lineCells = [], lineValues = [];
+
+        let r = toR, c = toC;
+        while (r >= 0 && r < SIZE && c >= 0 && c < SIZE) {
+          lineCells.unshift([r, c]);
+          lineValues.unshift(newBoard[r][c]);
+          r -= dr; c -= dc;
+        }
+
+        r = toR + dr; c = toC + dc;
+        while (r >= 0 && r < SIZE && c >= 0 && c < SIZE) {
+          lineCells.push([r, c]);
+          lineValues.push(newBoard[r][c]);
+          r += dr; c += dc;
+        }
+
+        const captureIndex = checkLineForCapture(lineValues, player);
+        if (captureIndex !== -1) {
+          const [er, ec] = lineCells[captureIndex];
+          newBoard[er][ec] = 0;
+          ate = true;
+        }
+      }
+
+      return { board: newBoard, ate };
+    }
+
+    function tryEatAfterMove(fromR, fromC, toR, toC, player) {
+      const result = simulateMove(fromR, fromC, toR, toC, player);
+      board = result.board;
+      return result.ate;
+    }
+
+    function hasValidMoves(player) {
+      for (let r = 0; r < SIZE; r++) {
+        for (let c = 0; c < SIZE; c++) {
+          if (board[r][c] === player && getAdjacentEmpty(r, c).length > 0) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    function checkGameOver() {
+      if (!gameActive) return false;
+      const black = board.flat().filter(x => x === 1).length;
+      const white = board.flat().filter(x => x === 2).length;
+
+      if (!hasValidMoves(currentPlayer)) {
+        let winnerMessage = '';
+        if (currentPlayer === 1) {
+          winnerMessage = '白棋（AI）获胜！';
+        } else {
+          winnerMessage = '黑棋（你）获胜！';
+        }
+        alert(winnerMessage);
+        gameActive = false;
+        statusEl.textContent = '游戏已结束';
+        return true;
+      }
+
+      if (black === 1 && white === 1) {
+        alert('双方均剩1子，平局！');
+        gameActive = false;
+        statusEl.textContent = '游戏已结束';
+        return true;
+      }
+
+      return false;
+    }
+
+    function makeMove(fromR, fromC, toR, toC) {
+      if (!gameActive || board[fromR][fromC] !== currentPlayer || board[toR][toC] !== 0) return false;
+
+      board[toR][toC] = currentPlayer;
+      board[fromR][fromC] = 0;
+      tryEatAfterMove(fromR, fromC, toR, toC, currentPlayer);
+
+      currentPlayer = 3 - currentPlayer;
+      selectedPiece = null;
+      updateCount();
+      updateStatus();
+      drawBoard();
+
+      if (checkGameOver()) return true;
+      return true;
+    }
+
+    function aiMove() {
+      if (!gameActive || currentPlayer !== 2) return;
+
+      statusEl.textContent = '轮到：⚪ 白棋（AI 思考中...）';
+
+      const moves = [];
+      let bestMove = null;
+
+      for (let r = 0; r < SIZE; r++) {
+        for (let c = 0; c < SIZE; c++) {
+          if (board[r][c] === 2) {
+            const adj = getAdjacentEmpty(r, c);
+            for (const [nr, nc] of adj) {
+              moves.push({ fromR: r, fromC: c, toR: nr, toC: nc });
+            }
+          }
+        }
+      }
+
+      for (const move of moves) {
+        const { ate } = simulateMove(move.fromR, move.fromC, move.toR, move.toC, 2);
+        if (ate) {
+          bestMove = move;
+          break;
+        }
+      }
+
+      if (!bestMove && moves.length > 0) {
+        bestMove = moves[Math.floor(Math.random() * moves.length)];
+      }
+
+      if (bestMove) {
+        setTimeout(() => {
+          makeMove(bestMove.fromR, bestMove.fromC, bestMove.toR, bestMove.toC);
+        }, 600);
+      } else {
+        checkGameOver();
+        updateStatus();
+      }
+    }
+
+    canvas.addEventListener('click', (e) => {
+      if (!gameActive || currentPlayer !== 1) return;
+      if (!hasValidMoves(1)) {
+        checkGameOver();
+        return;
+      }
+
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const col = Math.round((x - CELL_SIZE) / CELL_SIZE);
+      const row = Math.round((y - CELL_SIZE) / CELL_SIZE);
+
+      if (row < 0 || row >= SIZE || col < 0 || col >= SIZE) return;
+
+      if (selectedPiece) {
+        const adj = getAdjacentEmpty(selectedPiece.row, selectedPiece.col);
+        const canMove = adj.some(([r, c]) => r === row && c === col);
+        if (canMove) {
+          if (makeMove(selectedPiece.row, selectedPiece.col, row, col)) {
+            if (gameActive) {
+              setTimeout(aiMove, 300);
+            }
+          }
+        }
+        selectedPiece = null;
+        drawBoard();
+      } else {
+        if (board[row][col] === currentPlayer) {
+          selectedPiece = { row, col };
+          drawBoard();
+        }
+      }
+    });
+
+    initBoard();
+  </script>
+</body>
+</html>
