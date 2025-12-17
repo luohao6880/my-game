@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -21,15 +22,15 @@
       min-height: 100vh;
     }
     h1 {
-      font-size: 24px;
+      font-size: 22px;
       margin: 8px 0 6px;
       color: #3a2a1d;
     }
     .author {
-      font-size: 20px;
+      font-size: 18px;
       font-weight: bold;
       color: #c0392b;
-      margin-bottom: 16px;
+      margin-bottom: 12px;
       letter-spacing: 1px;
     }
 
@@ -37,55 +38,62 @@
       width: 100%;
       max-width: 320px;
       margin: 0 auto;
+      background: white;
+      padding: 16px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     }
 
     .status-line {
-      margin: 8px 0;
-      font-size: 18px;
+      margin: 6px 0;
+      font-size: 16px;
       font-weight: 600;
       color: #3a2a1d;
     }
 
+    /* ✅ 强制 canvas 显示尺寸，避免 iOS 布局塌陷 */
     canvas {
       background: #e8c596;
       border: 2px solid #a67c52;
       border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-      cursor: pointer;
       width: 100%;
-      height: auto;
+      height: 320px; /* 关键：固定高度 */
       display: block;
+      margin: 12px 0;
       image-rendering: crisp-edges;
     }
 
     .buttons-row {
       display: flex;
-      gap: 12px;
-      margin-top: 12px;
+      gap: 10px;
+      margin-top: 8px;
       justify-content: center;
+      flex-wrap: wrap;
     }
     .btn {
-      padding: 12px 16px;
-      font-size: 16px;
+      padding: 10px 14px;
+      font-size: 15px;
       font-weight: 600;
       border: none;
       border-radius: 8px;
       cursor: pointer;
       transition: background 0.2s, transform 0.1s;
       -webkit-appearance: none;
+      min-width: 90px;
     }
     .btn.primary { background: #2980b9; color: white; }
     .btn.black   { background: #2c3e50; color: white; }
     .btn.white   { background: #ecf0f1; color: #2c3e50; border: 1px solid #bdc3c7; }
     .btn:active { transform: scale(0.96); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
     .hint {
       color: #5d4037;
-      font-size: 15px;
-      margin-top: 16px;
+      font-size: 14px;
+      margin-top: 12px;
       line-height: 1.5;
       text-align: left;
-      padding: 0 10px;
+      padding: 0 8px;
     }
   </style>
 </head>
@@ -94,11 +102,11 @@
   <div class="author">by 罗浩制作</div>
 
   <div class="panel">
-    <div class="status-line">黑方剩子：<span id="black-count">6</span></div>
-    <div class="status-line">白方剩子：<span id="white-count">6</span></div>
+    <div class="status-line">⚫ 黑子：<span id="black-count">6</span></div>
+    <div class="status-line">⚪ 白子：<span id="white-count">6</span></div>
     <div class="status-line" id="status">请选择执子颜色</div>
 
-    <!-- ✅ 主面板上的颜色选择按钮 -->
+    <!-- ✅ 主面板按钮，iOS 可见 -->
     <div class="buttons-row" id="color-buttons">
       <button class="btn black" onclick="chooseColor(1)">⚫ 执黑<br>（先手）</button>
       <button class="btn white" onclick="chooseColor(2)">⚪ 执白<br>（后手）</button>
@@ -106,67 +114,67 @@
 
     <canvas id="board" width="320" height="320"></canvas>
 
-    <div class="buttons-row" style="margin-top: 16px;">
+    <div class="buttons-row">
       <button class="btn primary" onclick="resetGame()">重新开始</button>
     </div>
   </div>
 
   <div class="hint">
-    规则：移动己方棋子到相邻空位。若形成「黑-白-黑」或「白-黑-白」直线，则吃掉中间敌子。
+    移动己方棋子到相邻空位。若形成「黑-白-黑」或「白-黑-白」直线，可吃掉中间敌子。
   </div>
 
   <script>
     const canvas = document.getElementById('board');
     const dpr = window.devicePixelRatio || 1;
-    // 初始设置 canvas 像素尺寸（防止 getBoundingClientRect 返回 0）
     canvas.width = 320 * dpr;
     canvas.height = 320 * dpr;
     const ctx = canvas.getContext('2d');
     ctx.scale(dpr, dpr);
 
     const SIZE = 4;
-    let CELL_SIZE = 320 / (SIZE + 1); // 初始值基于 canvas 宽度
-    let RADIUS = Math.max(CELL_SIZE / 2 - 4, 2); // ✅ 防负数
+    // ✅ 使用固定 CELL_SIZE，避免 iOS 初始 0 问题
+    const DISPLAY_SIZE = 320; // CSS 中 canvas 高度
+    let CELL_SIZE = DISPLAY_SIZE / (SIZE + 1);
+    let RADIUS = Math.max(CELL_SIZE / 2 - 4, 2);
 
     let board = [];
     let currentPlayer = 1;
-    let humanPlayer = null; // 未选择
+    let humanPlayer = null;
     let selectedPiece = null;
     let gameActive = false;
+    let aiHasMovedFirstAsBlack = false; // 标记 AI 是否已作为黑棋走第一步
 
-    // 初始化棋盘布局（固定初始阵型）
     function setupInitialBoard() {
       board = Array(SIZE).fill().map(() => Array(SIZE).fill(0));
       for (let r = 0; r < 2; r++) {
         for (let c = 0; c < 4; c++) {
-          if ((r === 0 && c !== 1) || (r === 1 && c !== 1)) {
-            board[r][c] = 1;
-          }
+          if ((r === 0 && c !== 1) || (r === 1 && c !== 1)) board[r][c] = 1;
         }
       }
       for (let r = 2; r < 4; r++) {
         for (let c = 0; c < 4; c++) {
-          if ((r === 2 && c !== 1) || (r === 3 && c !== 1)) {
-            board[r][c] = 2;
-          }
+          if ((r === 2 && c !== 1) || (r === 3 && c !== 1)) board[r][c] = 2;
         }
       }
     }
 
-    // 选择颜色
     function chooseColor(color) {
-      if (humanPlayer !== null) return; // 已选择过
+      if (humanPlayer !== null) return;
       humanPlayer = color;
-      document.getElementById('color-buttons').style.display = 'none';
+      document.getElementById('color-buttons').innerHTML = `
+        <button class="btn black" disabled>⚫ 执黑</button>
+        <button class="btn white" disabled>⚪ 执白</button>
+      `;
       gameActive = true;
       setupInitialBoard();
       updateCount();
-      currentPlayer = 1; // 黑棋总是先走
+      currentPlayer = 1;
       updateStatus();
 
+      // ✅ 如果玩家执白，AI 先走，但降低攻击性（第一次不吃子）
       if (humanPlayer === 2) {
-        // 玩家执白，AI（黑）先走
-        setTimeout(aiMove, 500);
+        aiHasMovedFirstAsBlack = true; // 标记：这是 AI 的“温和开局”
+        setTimeout(aiMove, 600);
       }
       drawBoard();
     }
@@ -175,19 +183,17 @@
       humanPlayer = null;
       gameActive = false;
       selectedPiece = null;
-      document.getElementById('color-buttons').style.display = 'flex';
+      aiHasMovedFirstAsBlack = false;
+      document.getElementById('color-buttons').innerHTML = `
+        <button class="btn black" onclick="chooseColor(1)">⚫ 执黑<br>（先手）</button>
+        <button class="btn white" onclick="chooseColor(2)">⚪ 执白<br>（后手）</button>
+      `;
       document.getElementById('status').textContent = '请选择执子颜色';
-      // 重绘空棋盘（但保留初始布局视觉）
       setupInitialBoard();
       drawBoard();
     }
 
     function drawBoard() {
-      // 动态适配 canvas 显示尺寸
-      const displayWidth = canvas.clientWidth;
-      CELL_SIZE = displayWidth / (SIZE + 1);
-      RADIUS = Math.max(CELL_SIZE / 2 - 4, 2);
-
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       // 绘制网格
@@ -198,7 +204,6 @@
         ctx.moveTo(CELL_SIZE, CELL_SIZE * (i + 1));
         ctx.lineTo(CELL_SIZE * SIZE, CELL_SIZE * (i + 1));
         ctx.stroke();
-
         ctx.beginPath();
         ctx.moveTo(CELL_SIZE * (i + 1), CELL_SIZE);
         ctx.lineTo(CELL_SIZE * (i + 1), CELL_SIZE * SIZE);
@@ -224,8 +229,7 @@
             ctx.lineWidth = 1.5;
             ctx.stroke();
           }
-
-          if (selectedPiece && selectedPiece.row === r && selectedPiece.col === c) {
+          if (selectedPiece?.row === r && selectedPiece?.col === c) {
             ctx.strokeStyle = '#e74c3c';
             ctx.lineWidth = 3;
             ctx.beginPath();
@@ -244,16 +248,16 @@
     }
 
     function updateStatus() {
-      const statusEl = document.getElementById('status');
       if (!gameActive) return;
+      const el = document.getElementById('status');
       if (currentPlayer === humanPlayer) {
-        statusEl.textContent = currentPlayer === 1 ? '轮到：⚫ 黑棋（你）' : '轮到：⚪ 白棋（你）';
+        el.textContent = currentPlayer === 1 ? '轮到你：⚫ 黑棋' : '轮到你：⚪ 白棋';
       } else {
-        statusEl.textContent = currentPlayer === 1 ? '轮到：⚫ 黑棋（AI）' : '轮到：⚪ 白棋（AI）';
+        el.textContent = currentPlayer === 1 ? 'AI 思考中：⚫ 黑棋' : 'AI 思考中：⚪ 白棋';
       }
     }
 
-    // ===== 游戏逻辑（简化版，保持原规则）=====
+    // ===== 游戏逻辑 =====
     function getAdjacentEmpty(r, c) {
       const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
       return dirs.map(([dr,dc]) => {
@@ -265,19 +269,12 @@
       }).filter(Boolean);
     }
 
-    function checkLineForCapture(line, player) {
-      for (let i = 1; i < line.length - 1; i++) {
-        if (line[i-1] === player && line[i] !== 0 && line[i] !== player && line[i+1] === player) {
-          return i;
-        }
-      }
-      return -1;
-    }
-
-    function simulateMove(fromR, fromC, toR, toC, player) {
+    function simulateMove(fromR, fromC, toR, toC, player, allowCapture = true) {
       const newBoard = board.map(row => [...row]);
       newBoard[toR][toC] = player;
       newBoard[fromR][fromC] = 0;
+
+      if (!allowCapture) return newBoard; // 用于 AI 温和开局
 
       const directions = [[0,1], [1,0]];
       for (const [dr, dc] of directions) {
@@ -296,6 +293,15 @@
         if (idx !== -1) newBoard[lineCells[idx][0]][lineCells[idx][1]] = 0;
       }
       return newBoard;
+    }
+
+    function checkLineForCapture(line, player) {
+      for (let i = 1; i < line.length - 1; i++) {
+        if (line[i-1] === player && line[i] !== 0 && line[i] !== player && line[i+1] === player) {
+          return i;
+        }
+      }
+      return -1;
     }
 
     function makeMove(fromR, fromC, toR, toC) {
@@ -321,6 +327,7 @@
       return false;
     }
 
+    // ✅ 优化 AI：执白时更容易赢
     function aiMove() {
       if (!gameActive || currentPlayer === humanPlayer || !hasValidMoves(currentPlayer)) return;
 
@@ -337,13 +344,38 @@
       }
 
       let bestMove = null;
+      const isHumanWhite = (humanPlayer === 2);
+      const isAIFirstMoveAsBlack = (aiHasMovedFirstAsBlack && currentPlayer === 1);
+
+      // 收集所有能吃子的走法
+      const captureMoves = [];
       for (const m of moves) {
-        const testBoard = simulateMove(m.fromR, m.fromC, m.toR, m.toC, currentPlayer);
-        const captured = board.flat().filter(x => x !== 0).length - testBoard.flat().filter(x => x !== 0).length;
-        if (captured > 0) { bestMove = m; break; }
+        const testBoard = simulateMove(m.fromR, m.fromC, m.toR, m.toC, currentPlayer, true);
+        const before = board.flat().filter(x => x !== 0).length;
+        const after = testBoard.flat().filter(x => x !== 0).length;
+        if (after < before) captureMoves.push(m);
       }
-      if (!bestMove && moves.length > 0) {
+
+      // ✅ 关键平衡：如果人类执白，AI 有 40% 概率放弃吃子（制造机会）
+      if (isHumanWhite && captureMoves.length > 0 && Math.random() < 0.4) {
+        // 故意不用吃子走法
         bestMove = moves[Math.floor(Math.random() * moves.length)];
+      } else if (captureMoves.length > 0) {
+        bestMove = captureMoves[0]; // 优先吃子
+      } else if (moves.length > 0) {
+        bestMove = moves[Math.floor(Math.random() * moves.length)];
+      }
+
+      // ✅ 特殊：AI 第一步（执黑）不主动吃子，给白棋喘息
+      if (isAIFirstMoveAsBlack && bestMove) {
+        board = simulateMove(bestMove.fromR, bestMove.fromC, bestMove.toR, bestMove.toC, currentPlayer, false);
+        aiHasMovedFirstAsBlack = false; // 仅此一次
+        currentPlayer = 3 - currentPlayer;
+        updateCount();
+        updateStatus();
+        drawBoard();
+        if (currentPlayer !== humanPlayer) setTimeout(aiMove, 400);
+        return;
       }
 
       if (bestMove) {
@@ -351,7 +383,7 @@
       }
     }
 
-    // ===== 鼠标交互 =====
+    // ===== 用户交互 =====
     canvas.addEventListener('click', (e) => {
       if (!gameActive || humanPlayer === null || currentPlayer !== humanPlayer) return;
       if (!hasValidMoves(humanPlayer)) return;
@@ -367,20 +399,16 @@
       if (selectedPiece) {
         const canMove = getAdjacentEmpty(selectedPiece.row, selectedPiece.col)
           .some(([r, c]) => r === row && c === col);
-        if (canMove) {
-          makeMove(selectedPiece.row, selectedPiece.col, row, col);
-        }
+        if (canMove) makeMove(selectedPiece.row, selectedPiece.col, row, col);
         selectedPiece = null;
         drawBoard();
-      } else {
-        if (board[row][col] === humanPlayer) {
-          selectedPiece = { row, col };
-          drawBoard();
-        }
+      } else if (board[row][col] === humanPlayer) {
+        selectedPiece = { row, col };
+        drawBoard();
       }
     });
 
-    // 初始绘制
+    // 初始化
     setupInitialBoard();
     drawBoard();
   </script>
